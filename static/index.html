@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Webhook Delivery Tester</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel2:#1c2128; --border:#30363d;
+    --fg:#e6edf3; --muted:#8b949e; --accent:#58a6ff;
+    --ok:#3fb950; --bad:#f85149; --warn:#d29922;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--fg);
+       font:13px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  header{display:flex;align-items:center;gap:12px;padding:10px 16px;
+         border-bottom:1px solid var(--border);background:var(--panel)}
+  header h1{font-size:15px;margin:0;font-weight:600}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--ok);
+       box-shadow:0 0 8px var(--ok);animation:pulse 1.6s infinite}
+  @keyframes pulse{50%{opacity:.3}}
+  .muted{color:var(--muted)}
+  .spacer{flex:1}
+  button{background:var(--panel2);color:var(--fg);border:1px solid var(--border);
+         border-radius:6px;padding:5px 10px;cursor:pointer;font:inherit}
+  button:hover{border-color:var(--accent)}
+  button.danger:hover{border-color:var(--bad);color:var(--bad)}
+  input{background:#0d1117;color:var(--fg);border:1px solid var(--border);
+        border-radius:6px;padding:6px 8px;font:inherit;width:100%;font-family:ui-monospace,monospace}
+  input:focus{outline:none;border-color:var(--accent)}
+  main{display:grid;grid-template-columns:300px 340px 1fr;
+       height:calc(100vh - 46px);overflow:hidden}
+  @media (max-width:1100px){main{grid-template-columns:1fr;height:auto;overflow:auto}}
+  .col{border-right:1px solid var(--border);overflow-y:auto;padding:12px}
+  .col:last-child{border-right:none}
+  .col h2{font-size:11px;text-transform:uppercase;letter-spacing:.08em;
+          color:var(--muted);margin:0 0 10px;display:flex;align-items:center;gap:8px}
+  ul{list-style:none;margin:0;padding:0}
+  .secret{background:var(--panel);border:1px solid var(--border);border-radius:6px;
+          padding:8px;margin-bottom:8px;display:flex;flex-direction:column;gap:4px}
+  .secret .name{font-weight:600}
+  .secret code{font-size:11px;color:var(--muted);word-break:break-all;
+               font-family:ui-monospace,monospace}
+  .delivery{background:var(--panel);border:1px solid var(--border);border-radius:6px;
+            padding:8px 10px;margin-bottom:6px;cursor:pointer;transition:border-color .15s}
+  .delivery:hover{border-color:var(--accent)}
+  .delivery.selected{border-color:var(--accent);background:var(--panel2)}
+  .delivery.fresh{animation:flash 1.4s ease-out}
+  @keyframes flash{0%{background:#1f3a2f}100%{background:var(--panel)}}
+  .row{display:flex;align-items:center;gap:8px;justify-content:space-between}
+  .row+.row{margin-top:4px}
+  .small{font-size:11px}
+  .badge{display:inline-block;font-size:10px;padding:2px 6px;border-radius:10px;
+         border:1px solid var(--border);font-weight:600;letter-spacing:.02em}
+  .badge.ok{color:var(--ok);border-color:var(--ok)}
+  .badge.bad{color:var(--bad);border-color:var(--bad)}
+  .badge.neutral{color:var(--muted)}
+  pre{background:#0d1117;border:1px solid var(--border);border-radius:6px;
+      padding:10px;overflow:auto;max-height:340px;font-size:12px;
+      font-family:ui-monospace,SFMono-Regular,Menlo,monospace;margin:0 0 14px}
+  .kv{display:grid;grid-template-columns:130px 1fr;gap:4px 10px;margin-bottom:4px}
+  .kv span{color:var(--muted)}
+  .kv code{font-family:ui-monospace,monospace;font-size:12px;word-break:break-all}
+  h3{font-size:11px;text-transform:uppercase;letter-spacing:.08em;
+     color:var(--muted);margin:16px 0 6px}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+  .err{background:#3a1c1c;border:1px solid var(--bad);color:#ffb4b4;
+       border-radius:6px;padding:8px;margin:8px 0;font-size:12px;
+       font-family:ui-monospace,monospace}
+  .empty{color:var(--muted);font-style:italic;padding:6px 0}
+  form{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+  form button{width:100%}
+</style>
+</head>
+<body>
+<header>
+  <span class="dot" id="liveDot"></span>
+  <h1>Webhook Delivery Tester</h1>
+  <span class="muted small" id="statusText">polling…</span>
+  <span class="spacer"></span>
+  <span class="muted small">POST <code>/webhook-test</code></span>
+  <button class="danger" onclick="clearAll()">Clear all deliveries</button>
+</header>
+
+<main>
+  <!-- ── Secrets ─────────────────────────────────────────────── -->
+  <div class="col">
+    <h2>Signing secrets</h2>
+    <form id="secretForm" onsubmit="return addSecret(event)">
+      <input id="secretName" placeholder="Name (e.g. production)" required>
+      <input id="secretValue" placeholder="whsec_…" required>
+      <button type="submit">Add secret</button>
+    </form>
+    <ul id="secretList"></ul>
+  </div>
+
+  <!-- ── Deliveries list ─────────────────────────────────────── -->
+  <div class="col">
+    <h2>Deliveries <span class="muted small" id="count"></span></h2>
+    <ul id="deliveryList"></ul>
+  </div>
+
+  <!-- ── Detail ──────────────────────────────────────────────── -->
+  <div class="col">
+    <h2>Delivery detail</h2>
+    <div id="detail"><p class="empty">Select a delivery to inspect it.</p></div>
+  </div>
+</main>
+
+<script>
+const POLL_MS = 2000;
+const state = {
+  secrets: [],
+  deliveries: [],
+  selectedId: null,
+  knownIds: new Set(),
+  firstLoad: true,
+};
+
+// -------------------------------------------------------------- helpers
+const $ = (id) => document.getElementById(id);
+
+function esc(v) {
+  return String(v ?? '').replace(/[&<>"']/g,
+    c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function shortId(id) { return id ? id.slice(0, 8) : '—'; }
+function fmtTime(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return isNaN(d) ? iso : d.toLocaleTimeString();
+}
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, { credentials: 'same-origin', ...opts });
+  if (res.status === 401) { location.reload(); throw new Error('unauthorized'); }
+  if (!res.ok) {
+    let msg = res.statusText;
+    try { msg = (await res.json()).detail || msg; } catch {}
+    throw new Error(msg);
+  }
+  if (res.status === 204) return null;
+  const ct = res.headers.get('content-type') || '';
+  return ct.includes('application/json') ? res.json() : res.text();
+}
+
+// -------------------------------------------------------------- secrets
+async function loadSecrets() {
+  state.secrets = await api('/api/secrets');
+  renderSecrets();
+}
+
+function renderSecrets() {
+  const ul = $('secretList');
+  if (!state.secrets.length) {
+    ul.innerHTML = '<li class="empty">No secrets yet. Add one to start verifying signatures.</li>';
+    return;
+  }
+  ul.innerHTML = state.secrets.map(s => `
+    <li class="secret">
+      <div class="row">
+        <span class="name">${esc(s.name)}</span>
+        <button class="danger small" onclick="deleteSecret('${s.id}')">✕</button>
+      </div>
+      <code>${esc(s.value)}</code>
+    </li>`).join('');
+}
+
+async function addSecret(ev) {
+  ev.preventDefault();
+  const name = $('secretName').value.trim();
+  const value = $('secretValue').value.trim();
+  if (!name || !value) return false;
+  try {
+    await api('/api/secrets', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, value }),
+    });
+    $('secretName').value = '';
+    $('secretValue').value = '';
+    await loadSecrets();
+  } catch (e) { alert('Failed: ' + e.message); }
+  return false;
+}
+
+async function deleteSecret(id) {
+  if (!confirm('Delete this secret?')) return;
+  await api('/api/secrets/' + id, { method: 'DELETE' });
+  await loadSecrets();
+}
+
+// -------------------------------------------------------------- polling
+async function poll() {
+  try {
+    const list = await api('/api/deliveries?limit=200');
+    const fresh = new Set();
+    for (const d of list) if (!state.knownIds.has(d.id)) fresh.add(d.id);
+
+    state.deliveries = list;
+    for (const id of fresh) state.knownIds.add(id);
+
+    renderDeliveries(fresh);
+    setStatus(true, `${list.length} deliver${list.length === 1 ? 'y' : 'ies'}`);
+
+    if (state.firstLoad && list.length && !state.selectedId) {
+      selectDelivery(list[0].id);
+    }
+    state.firstLoad = false;
+  } catch (e) {
+    setStatus(false, 'connection error');
+  }
+}
+
+function setStatus(ok, text) {
+  $('liveDot').style.background = ok ? 'var(--ok)' : 'var(--bad)';
+  $('liveDot').style.boxShadow = `0 0 8px ${ok ? 'var(--ok)' : 'var(--bad)'}`;
+  $('statusText').textContent = text;
+}
+
+function renderDeliveries(fresh = new Set()) {
+  const ul = $('deliveryList');
+  $('count').textContent = state.deliveries.length ? `(${state.deliveries.length})` : '';
+
+  if (!state.deliveries.length) {
+    ul.innerHTML = '<li class="empty">No deliveries yet. Point your service at <code>/webhook-test</code>.</li>';
+    return;
+  }
+
+  const scrollTop = ul.scrollTop;
+  ul.innerHTML = state.deliveries.map(d => {
+    const cls = [
+      'delivery',
+      d.id === state.selectedId ? 'selected' : '',
+      fresh.has(d.id) ? 'fresh' : '',
+    ].filter(Boolean).join(' ');
+    const badge = d.verified
+      ? '<span class="badge ok">verified</span>'
+      : '<span class="badge bad">failed</span>';
+    return `
+      <li class="${cls}" onclick="selectDelivery('${d.id}')">
+        <div class="row">
+          <span class="badge neutral">${esc(d.event || 'unknown event')}</span>
+          ${badge}
+        </div>
+        <div class="row small muted">
+          <span>${esc(d.interview_kind || '—')} · ${esc(shortId(d.interview_id))}</span>
+          <span>${esc(fmtTime(d.received_at))}</span>
+        </div>
+      </li>`;
+  }).join('');
+  ul.scrollTop = scrollTop;
+}
+
+// -------------------------------------------------------------- detail
+async function selectDelivery(id) {
+  state.selectedId = id;
+  renderDeliveries();
+  const d = await api('/api/deliveries/' + id);
+  renderDetail(d);
+}
+
+function renderDetail(d) {
+  const badge = d.verified
+    ? '<span class="badge ok">✓ signature verified</span>'
+    : '<span class="badge bad">✗ signature failed</span>';
+
+  const err = d.verification_error
+    ? `<div class="err">Verification error: ${esc(d.verification_error)}</div>` : '';
+
+  const bodyJson = d.body == null
+    ? d.raw_body
+    : JSON.stringify(d.body, null, 2);
+
+  $('detail').innerHTML = `
+    <div class="toolbar">
+      ${badge}
+      <span class="spacer"></span>
+      <button onclick="downloadDelivery('${d.id}')">⬇ Download</button>
+      <button class="danger" onclick="deleteDelivery('${d.id}')">Delete</button>
+    </div>
+    ${err}
+    <div class="kv"><span>ID</span><code>${esc(d.id)}</code></div>
+    <div class="kv"><span>Received</span><code>${esc(d.received_at)}</code></div>
+    <div class="kv"><span>Event</span><code>${esc(d.event || '—')}</code></div>
+    <div class="kv"><span>Matched secret</span><code>${esc(d.matched_secret || '—')}</code></div>
+    <div class="kv"><span>Client</span><code>${esc(d.client || '—')}</code></div>
+    <h3>Payload</h3>
+    <pre>${esc(bodyJson)}</pre>
+    <h3>Headers</h3>
+    <pre>${esc(JSON.stringify(d.headers, null, 2))}</pre>
+  `;
+}
+
+function downloadDelivery(id) {
+  // Browser will attach the cached basic-auth credentials.
+  window.location.href = `/api/deliveries/${id}/download`;
+}
+
+async function deleteDelivery(id) {
+  if (!confirm('Delete this delivery?')) return;
+  await api('/api/deliveries/' + id, { method: 'DELETE' });
+  state.knownIds.delete(id);
+  if (state.selectedId === id) {
+    state.selectedId = null;
+    $('detail').innerHTML = '<p class="empty">Select a delivery to inspect it.</p>';
+  }
+  await poll();
+}
+
+async function clearAll() {
+  if (!confirm('Delete every stored delivery?')) return;
+  await api('/api/deliveries', { method: 'DELETE' });
+  state.knownIds.clear();
+  state.selectedId = null;
+  $('detail').innerHTML = '<p class="empty">Select a delivery to inspect it.</p>';
+  await poll();
+}
+
+// -------------------------------------------------------------- boot
+(async function boot() {
+  await loadSecrets();
+  await poll();
+  setInterval(poll, POLL_MS);
+})();
+</script>
+</body>
+</html>
