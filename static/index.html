@@ -8,18 +8,12 @@
   :root{
     --bg:#0d1117; --panel:#161b22; --panel2:#1c2128; --border:#30363d;
     --fg:#e6edf3; --muted:#8b949e; --accent:#58a6ff;
-    --ok:#3fb950; --bad:#f85149; --warn:#d29922;
+    --ok:#3fb950; --bad:#f85149;
   }
   *{box-sizing:border-box}
   html,body{height:100%}
   body{margin:0;background:var(--bg);color:var(--fg);
        font:13px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-  header{display:flex;align-items:center;gap:12px;padding:10px 16px;
-         border-bottom:1px solid var(--border);background:var(--panel)}
-  header h1{font-size:15px;margin:0;font-weight:600}
-  .dot{width:8px;height:8px;border-radius:50%;background:var(--ok);
-       box-shadow:0 0 8px var(--ok);animation:pulse 1.6s infinite}
-  @keyframes pulse{50%{opacity:.3}}
   .muted{color:var(--muted)}
   .spacer{flex:1}
   button{background:var(--panel2);color:var(--fg);border:1px solid var(--border);
@@ -27,8 +21,28 @@
   button:hover{border-color:var(--accent)}
   button.danger:hover{border-color:var(--bad);color:var(--bad)}
   input{background:#0d1117;color:var(--fg);border:1px solid var(--border);
-        border-radius:6px;padding:6px 8px;font:inherit;width:100%;font-family:ui-monospace,monospace}
+        border-radius:6px;padding:6px 8px;font:inherit;width:100%;
+        font-family:ui-monospace,monospace}
   input:focus{outline:none;border-color:var(--accent)}
+
+  /* auth */
+  .auth-wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+             background:var(--bg);z-index:10}
+  .auth-card{width:340px;background:var(--panel);border:1px solid var(--border);
+             border-radius:10px;padding:22px}
+  .auth-card h1{font-size:16px;margin:0 0 16px;text-align:center}
+  .tabs{display:flex;gap:6px;margin-bottom:12px}
+  .tabs button{flex:1}
+  .tabs button.active{border-color:var(--accent);color:var(--accent)}
+  .auth-card form{display:flex;flex-direction:column;gap:8px}
+
+  /* app */
+  header{display:flex;align-items:center;gap:12px;padding:10px 16px;
+         border-bottom:1px solid var(--border);background:var(--panel)}
+  header h1{font-size:15px;margin:0;font-weight:600}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--ok);
+       box-shadow:0 0 8px var(--ok);animation:pulse 1.6s infinite}
+  @keyframes pulse{50%{opacity:.3}}
   main{display:grid;grid-template-columns:300px 340px 1fr;
        height:calc(100vh - 46px);overflow:hidden}
   @media (max-width:1100px){main{grid-template-columns:1fr;height:auto;overflow:auto}}
@@ -62,6 +76,12 @@
   .kv{display:grid;grid-template-columns:130px 1fr;gap:4px 10px;margin-bottom:4px}
   .kv span{color:var(--muted)}
   .kv code{font-family:ui-monospace,monospace;font-size:12px;word-break:break-all}
+    .idbox{background:var(--panel);border:1px solid var(--border);border-radius:6px;
+         padding:8px 10px;margin:0 0 12px}
+  .idbox .label{font-size:10px;text-transform:uppercase;letter-spacing:.08em;
+                color:var(--muted);margin-bottom:4px}
+  .idbox .idval{display:block;font-family:ui-monospace,monospace;font-size:13px;
+                color:var(--accent);cursor:text;user-select:all;word-break:break-all}
   h3{font-size:11px;text-transform:uppercase;letter-spacing:.08em;
      color:var(--muted);margin:16px 0 6px}
   .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
@@ -74,51 +94,66 @@
 </style>
 </head>
 <body>
-<header>
-  <span class="dot" id="liveDot"></span>
-  <h1>Webhook Delivery Tester</h1>
-  <span class="muted small" id="statusText">polling…</span>
-  <span class="spacer"></span>
-  <span class="muted small">POST <code>/webhook-test</code></span>
-  <button class="danger" onclick="clearAll()">Clear all deliveries</button>
-</header>
 
-<main>
-  <!-- ── Secrets ─────────────────────────────────────────────── -->
-  <div class="col">
-    <h2>Signing secrets</h2>
-    <form id="secretForm" onsubmit="return addSecret(event)">
-      <input id="secretName" placeholder="Name (e.g. production)" required>
-      <input id="secretValue" placeholder="whsec_…" required>
-      <button type="submit">Add secret</button>
+<div id="authScreen" class="auth-wrap">
+  <div class="auth-card">
+    <h1>Webhook Delivery Tester</h1>
+    <div class="tabs">
+      <button type="button" data-tab="login" class="active" onclick="setAuthMode('login')">Log in</button>
+      <button type="button" data-tab="register" onclick="setAuthMode('register')">Register</button>
+    </div>
+    <form id="authForm" onsubmit="return submitAuth(event)">
+      <input id="authUser" placeholder="username" autocomplete="username" required>
+      <input id="authPass" type="password" placeholder="password" autocomplete="current-password" required>
+      <button type="submit" id="authSubmit">Log in</button>
+      <div id="authError" class="err" style="display:none"></div>
     </form>
-    <ul id="secretList"></ul>
   </div>
+</div>
 
-  <!-- ── Deliveries list ─────────────────────────────────────── -->
-  <div class="col">
-    <h2>Deliveries <span class="muted small" id="count"></span></h2>
-    <ul id="deliveryList"></ul>
-  </div>
+<div id="app" style="display:none">
+  <header>
+    <span class="dot" id="liveDot"></span>
+    <h1>Webhook Delivery Tester</h1>
+    <span class="muted small" id="statusText">polling…</span>
+    <span class="spacer"></span>
+    <span class="muted small" id="whoami"></span>
+    <button onclick="logout()">Log out</button>
+    <button class="danger" onclick="clearAll()">Clear my deliveries</button>
+  </header>
 
-  <!-- ── Detail ──────────────────────────────────────────────── -->
-  <div class="col">
-    <h2>Delivery detail</h2>
-    <div id="detail"><p class="empty">Select a delivery to inspect it.</p></div>
-  </div>
-</main>
+  <main>
+    <div class="col">
+      <h2>My signing secrets</h2>
+      <form id="secretForm" onsubmit="return addSecret(event)">
+        <input id="secretName" placeholder="Name (e.g. production)" required>
+        <input id="secretValue" placeholder="whsec_…" required>
+        <button type="submit">Add secret</button>
+      </form>
+      <ul id="secretList"></ul>
+    </div>
+
+    <div class="col">
+      <h2>My deliveries <span class="muted small" id="count"></span></h2>
+      <ul id="deliveryList"></ul>
+    </div>
+
+    <div class="col">
+      <h2>Delivery detail</h2>
+      <div id="detail"><p class="empty">Select a delivery to inspect it.</p></div>
+    </div>
+  </main>
+</div>
 
 <script>
 const POLL_MS = 2000;
 const state = {
-  secrets: [],
-  deliveries: [],
-  selectedId: null,
-  knownIds: new Set(),
-  firstLoad: true,
+  me: null, secrets: [], deliveries: [],
+  selectedId: null, knownIds: new Set(), firstLoad: true,
 };
+let pollTimer = null;
+let authMode = 'login';
 
-// -------------------------------------------------------------- helpers
 const $ = (id) => document.getElementById(id);
 
 function esc(v) {
@@ -134,7 +169,10 @@ function fmtTime(iso) {
 
 async function api(path, opts = {}) {
   const res = await fetch(path, { credentials: 'same-origin', ...opts });
-  if (res.status === 401) { location.reload(); throw new Error('unauthorized'); }
+  if (res.status === 401) {
+    showAuth();
+    throw new Error('unauthorized');
+  }
   if (!res.ok) {
     let msg = res.statusText;
     try { msg = (await res.json()).detail || msg; } catch {}
@@ -145,7 +183,117 @@ async function api(path, opts = {}) {
   return ct.includes('application/json') ? res.json() : res.text();
 }
 
-// -------------------------------------------------------------- secrets
+/* ---- screens ---- */
+
+function showAuth() {
+  stopPolling();
+  $('authScreen').style.display = 'flex';
+  $('app').style.display = 'none';
+}
+function showApp() {
+  $('authScreen').style.display = 'none';
+  $('app').style.display = 'block';
+  $('whoami').textContent = state.me ? state.me.username : '';
+}
+
+function setAuthMode(mode) {
+  authMode = mode;
+  document.querySelectorAll('.tabs button').forEach(b =>
+    b.classList.toggle('active', b.dataset.tab === mode));
+  $('authSubmit').textContent = mode === 'login' ? 'Log in' : 'Register';
+  $('authError').style.display = 'none';
+}
+
+async function submitAuth(ev) {
+  ev.preventDefault();
+  const username = $('authUser').value.trim();
+  const password = $('authPass').value;
+  const errBox = $('authError');
+  errBox.style.display = 'none';
+  try {
+    const res = await fetch(`/api/auth/${authMode}`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+    if (!res.ok) {
+      let msg = res.statusText;
+      try { msg = (await res.json()).detail || msg; } catch {}
+      throw new Error(msg);
+    }
+    state.me = await res.json();
+    $('authPass').value = '';
+    resetLocalState();
+    showApp();
+    await loadSecrets();
+    await poll();
+    startPolling();
+  } catch (e) {
+    errBox.textContent = e.message;
+    errBox.style.display = 'block';
+  }
+  return false;
+}
+
+function resetLocalState() {
+  state.secrets = [];
+  state.deliveries = [];
+  state.selectedId = null;
+  state.knownIds = new Set();
+  state.firstLoad = true;
+  $('secretList').innerHTML = '';
+  $('deliveryList').innerHTML = '';
+  $('detail').innerHTML = '<p class="empty">Select a delivery to inspect it.</p>';
+  $('count').textContent = '';
+}
+
+async function logout() {
+  stopPolling();
+  try { await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' }); } catch {}
+  state.me = null;
+  resetLocalState();
+  showAuth();
+}
+
+/* ---- polling ---- */
+
+function startPolling() {
+  stopPolling();
+  pollTimer = setInterval(poll, POLL_MS);
+}
+function stopPolling() {
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+}
+
+async function poll() {
+  try {
+    const list = await api('/api/deliveries?limit=200');
+    const fresh = new Set();
+    for (const d of list) if (!state.knownIds.has(d.id)) fresh.add(d.id);
+    state.deliveries = list;
+    for (const id of fresh) state.knownIds.add(id);
+
+    renderDeliveries(fresh);
+    setStatus(true, `${list.length} deliver${list.length === 1 ? 'y' : 'ies'}`);
+
+    if (state.firstLoad && list.length && !state.selectedId) {
+      selectDelivery(list[0].id);
+    }
+    state.firstLoad = false;
+  } catch (e) {
+    if (e.message !== 'unauthorized') setStatus(false, 'connection error');
+  }
+}
+
+function setStatus(ok, text) {
+  $('liveDot').style.background = ok ? 'var(--ok)' : 'var(--bad)';
+  $('liveDot').style.boxShadow = `0 0 8px ${ok ? 'var(--ok)' : 'var(--bad)'}`;
+  $('statusText').textContent = text;
+}
+
+/* ---- secrets ---- */
+
 async function loadSecrets() {
   state.secrets = await api('/api/secrets');
   renderSecrets();
@@ -191,33 +339,7 @@ async function deleteSecret(id) {
   await loadSecrets();
 }
 
-// -------------------------------------------------------------- polling
-async function poll() {
-  try {
-    const list = await api('/api/deliveries?limit=200');
-    const fresh = new Set();
-    for (const d of list) if (!state.knownIds.has(d.id)) fresh.add(d.id);
-
-    state.deliveries = list;
-    for (const id of fresh) state.knownIds.add(id);
-
-    renderDeliveries(fresh);
-    setStatus(true, `${list.length} deliver${list.length === 1 ? 'y' : 'ies'}`);
-
-    if (state.firstLoad && list.length && !state.selectedId) {
-      selectDelivery(list[0].id);
-    }
-    state.firstLoad = false;
-  } catch (e) {
-    setStatus(false, 'connection error');
-  }
-}
-
-function setStatus(ok, text) {
-  $('liveDot').style.background = ok ? 'var(--ok)' : 'var(--bad)';
-  $('liveDot').style.boxShadow = `0 0 8px ${ok ? 'var(--ok)' : 'var(--bad)'}`;
-  $('statusText').textContent = text;
-}
+/* ---- deliveries ---- */
 
 function renderDeliveries(fresh = new Set()) {
   const ul = $('deliveryList');
@@ -253,7 +375,6 @@ function renderDeliveries(fresh = new Set()) {
   ul.scrollTop = scrollTop;
 }
 
-// -------------------------------------------------------------- detail
 async function selectDelivery(id) {
   state.selectedId = id;
   renderDeliveries();
@@ -269,9 +390,11 @@ function renderDetail(d) {
   const err = d.verification_error
     ? `<div class="err">Verification error: ${esc(d.verification_error)}</div>` : '';
 
-  const bodyJson = d.body == null
-    ? d.raw_body
-    : JSON.stringify(d.body, null, 2);
+  const bodyJson = d.body == null ? d.raw_body : JSON.stringify(d.body, null, 2);
+
+  const secretLine = d.matched_secret
+    ? `${esc(d.matched_secret)}${d.matched_secret_id ? ` <span class="muted">(${esc(d.matched_secret_id)})</span>` : ''}`
+    : '<span class="muted">— no secret matched —</span>';
 
   $('detail').innerHTML = `
     <div class="toolbar">
@@ -281,10 +404,13 @@ function renderDetail(d) {
       <button class="danger" onclick="deleteDelivery('${d.id}')">Delete</button>
     </div>
     ${err}
-    <div class="kv"><span>ID</span><code>${esc(d.id)}</code></div>
+    <div class="idbox">
+      <div class="label">Delivery ID</div>
+      <code class="idval" title="Click to select" onclick="selectText(this)">${esc(d.id)}</code>
+    </div>
     <div class="kv"><span>Received</span><code>${esc(d.received_at)}</code></div>
     <div class="kv"><span>Event</span><code>${esc(d.event || '—')}</code></div>
-    <div class="kv"><span>Matched secret</span><code>${esc(d.matched_secret || '—')}</code></div>
+    <div class="kv"><span>Matched secret</span><code>${secretLine}</code></div>
     <div class="kv"><span>Client</span><code>${esc(d.client || '—')}</code></div>
     <h3>Payload</h3>
     <pre>${esc(bodyJson)}</pre>
@@ -293,8 +419,15 @@ function renderDetail(d) {
   `;
 }
 
+function selectText(el) {
+  const r = document.createRange();
+  r.selectNodeContents(el);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(r);
+}
+
 function downloadDelivery(id) {
-  // Browser will attach the cached basic-auth credentials.
   window.location.href = `/api/deliveries/${id}/download`;
 }
 
@@ -310,7 +443,7 @@ async function deleteDelivery(id) {
 }
 
 async function clearAll() {
-  if (!confirm('Delete every stored delivery?')) return;
+  if (!confirm('Delete every delivery belonging to your account?')) return;
   await api('/api/deliveries', { method: 'DELETE' });
   state.knownIds.clear();
   state.selectedId = null;
@@ -318,11 +451,18 @@ async function clearAll() {
   await poll();
 }
 
-// -------------------------------------------------------------- boot
+/* ---- boot ---- */
+
 (async function boot() {
-  await loadSecrets();
-  await poll();
-  setInterval(poll, POLL_MS);
+  try {
+    state.me = await api('/api/auth/me');
+    showApp();
+    await loadSecrets();
+    await poll();
+    startPolling();
+  } catch (e) {
+    // api() already showed the auth screen on 401
+  }
 })();
 </script>
 </body>
