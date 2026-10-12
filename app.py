@@ -29,6 +29,21 @@ from fastapi.responses import HTMLResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from loguru import logger
 
+
+def _load_dotenv(path: str = "/app/.env") -> None:
+    p = Path(path)
+    if not p.is_file():
+        return
+    for line in p.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, _, v = line.partition("=")
+        os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+
+
+_load_dotenv()
+
 # ---------------------------------------------------------------------------
 # Config / constants
 # ---------------------------------------------------------------------------
@@ -39,7 +54,7 @@ TIMESTAMP_HEADER = "x-webhook-timestamp"
 BASE_DIR = Path(__file__).resolve().parent
 INDEX_FILE = BASE_DIR / "static" / "index.html"
 
-DATA_DIR = Path(os.environ.get("WEBHOOK_TESTER_DATA", str(BASE_DIR / "data"))).resolve()
+DATA_DIR = Path(os.environ.get("WEBHOOK_TESTER_DATA", "/data")).resolve()
 SECRETS_FILE = DATA_DIR / "secrets.json"
 DELIVERIES_DIR = DATA_DIR / "deliveries"
 
@@ -390,7 +405,7 @@ def main() -> None:
         description="Webhook delivery tester (files only, no DB)."
     )
     parser.add_argument("--host", default="0.0.0.0")
-    parser.add_argument("--port", type=int, default=8000)
+    parser.add_argument("--port", type=int, default=8095)
     parser.add_argument(
         "--user", default=os.environ.get("WEBHOOK_TESTER_USER", "admin")
     )
@@ -399,7 +414,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--data-dir",
-        default=os.environ.get("WEBHOOK_TESTER_DATA", str(BASE_DIR / "data")),
+        default=os.environ.get("WEBHOOK_TESTER_DATA", "/data"),
         help="Directory where secrets.json and deliveries/ are stored.",
     )
     parser.add_argument(

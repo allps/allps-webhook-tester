@@ -10,9 +10,9 @@ COPY static/ ./static/
 ENV WEBHOOK_TESTER_DATA=/data
 VOLUME ["/data"]
 
-EXPOSE 8000
+EXPOSE 8095
 
-CMD ["python", "app.py", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "app.py", "--host", "0.0.0.0", "--port", "8095"]
 
 
 
