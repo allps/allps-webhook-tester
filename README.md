@@ -20,7 +20,7 @@ data/deliveries/*.json
 
 ```bash
 uv run --with fastapi --with 'uvicorn[standard]' --with loguru \
-  app.py --host 0.0.0.0 --port 8000 --user admin --password s3cret
+  app.py --host 0.0.0.0 --port 8000 --data-dir ./data
 ```
 
 Or with a proper project:
@@ -28,7 +28,7 @@ Or with a proper project:
 ```bash
 uv init --bare
 uv add fastapi 'uvicorn[standard]' loguru
-uv run app.py --user admin --password s3cret
+uv run app.py --host 0.0.0.0 --port 8000  --max-skew 0 --data-dir ./data
 ```
 
 ## Flags
@@ -37,7 +37,6 @@ uv run app.py --user admin --password s3cret
 |---|---|---|
 | `--host` | `0.0.0.0` | |
 | `--port` | `8000` | |
-| `--user` / `--password` | `admin` / `admin` | HTTP Basic on `/` and `/api/*` |
 | `--data-dir` | `./data` | where `secrets.json` + `deliveries/` live |
 | `--max-skew` | `300` | replay window in seconds; `0` disables |
 
