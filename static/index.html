@@ -98,10 +98,6 @@
 <div id="authScreen" class="auth-wrap">
   <div class="auth-card">
     <h1>Webhook Delivery Tester</h1>
-    <div class="tabs">
-      <button type="button" data-tab="login" class="active" onclick="setAuthMode('login')">Log in</button>
-      <button type="button" data-tab="register" onclick="setAuthMode('register')">Register</button>
-    </div>
     <form id="authForm" onsubmit="return submitAuth(event)">
       <input id="authUser" placeholder="username" autocomplete="username" required>
       <input id="authPass" type="password" placeholder="password" autocomplete="current-password" required>
@@ -119,22 +115,22 @@
     <span class="spacer"></span>
     <span class="muted small" id="whoami"></span>
     <button onclick="logout()">Log out</button>
-    <button class="danger" onclick="clearAll()">Clear my deliveries</button>
+    <button class="danger" onclick="clearAll()">Clear deliveries (non recoverable)</button>
   </header>
 
   <main>
     <div class="col">
-      <h2>My signing secrets</h2>
+      <h2>Signing secrets</h2>
       <form id="secretForm" onsubmit="return addSecret(event)">
-        <input id="secretName" placeholder="Name (e.g. production)" required>
-        <input id="secretValue" placeholder="whsec_…" required>
+        <input id="secretName" placeholder="Name (e.g. wh_testing)" required>
+        <input id="secretValue" placeholder="whsec_*****************" required>
         <button type="submit">Add secret</button>
       </form>
       <ul id="secretList"></ul>
     </div>
 
     <div class="col">
-      <h2>My deliveries <span class="muted small" id="count"></span></h2>
+      <h2>Deliveries <span class="muted small" id="count"></span></h2>
       <ul id="deliveryList"></ul>
     </div>
 
@@ -146,7 +142,7 @@
 </div>
 
 <script>
-const POLL_MS = 2000;
+const POLL_MS = 5000;
 const state = {
   me: null, secrets: [], deliveries: [],
   selectedId: null, knownIds: new Set(), firstLoad: true,
@@ -196,11 +192,11 @@ function showApp() {
   $('whoami').textContent = state.me ? state.me.username : '';
 }
 
-function setAuthMode(mode) {
-  authMode = mode;
+function setAuthMode() {
+  authMode = 'login';
   document.querySelectorAll('.tabs button').forEach(b =>
     b.classList.toggle('active', b.dataset.tab === mode));
-  $('authSubmit').textContent = mode === 'login' ? 'Log in' : 'Register';
+  $('authSubmit').textContent = 'Log in';
   $('authError').style.display = 'none';
 }
 
@@ -211,7 +207,7 @@ async function submitAuth(ev) {
   const errBox = $('authError');
   errBox.style.display = 'none';
   try {
-    const res = await fetch(`/api/auth/${authMode}`, {
+    const res = await fetch(`/api/auth/login`, {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
